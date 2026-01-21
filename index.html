@@ -179,7 +179,7 @@ def plot_transmission_timeline(timeline_df, title="BB84 Transmission Timeline", 
 
     ax1.bar(display_df['BitIndex'], heights1, 
             color=colors1, edgecolor=edge_colors1, linewidth=1, alpha=0.9)
-    ax1.set_title(f'{title} - Alice\'s Transmitted Bits (Cyan=0, Navy=1)')
+    ax1.set_title(title + " - Alice Transmitted Bits (Cyan=0, Navy=1)")
     ax1.set_ylabel('Bit Representation')
     ax1.set_ylim(0, 1.2)
 
@@ -394,12 +394,12 @@ if st.sidebar.button("🚀 Run Simulation", type="primary"):
 
         ax1.bar(['Transmitted', 'Sifted', 'Final Key'], [num_bits, len(sifted_alice), len(final_key)],
                 color=['lightblue', 'steelblue', 'darkblue'])
-        ax1.set_title(f'No Eve (QBER: {qber:.3f})')
+        ax1.set_title(f"No Eve (QBER: {qber:.3f})")
         ax1.set_ylabel('Number of Bits')
 
         ax2.bar(['Transmitted', 'Sifted', 'Final Key'], [num_bits, len(sifted_alice_eve), len(final_key_eve)],
                 color=['lightcoral', 'indianred', 'darkred'])
-        ax2.set_title(f'With Eve (QBER: {qber_eve:.3f})')
+        ax2.set_title(f"With Eve (QBER: {qber_eve:.3f})")
         ax2.set_ylabel('Number of Bits')
 
         plt.tight_layout()
