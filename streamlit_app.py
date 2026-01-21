@@ -4,51 +4,61 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import hashlib
-from qiskit import QuantumCircuit, transpile
-from qiskit_aer import AerSimulator
 
 st.set_page_config(page_title="BB84 Quantum Key Distribution", layout="wide")
 
+class PureQuantumSimulator:
+    """Pure Python quantum simulator for BB84 protocol (no Qiskit required)"""
+
+    @staticmethod
+    def measure_qubit(bit, send_basis, measure_basis):
+        """
+        Simulate quantum measurement using pure Python
+
+        Parameters:
+        - bit: 0 or 1 (the classical bit Alice wants to send)
+        - send_basis: 0 (rectilinear/Z) or 1 (diagonal/X)
+        - measure_basis: 0 (rectilinear/Z) or 1 (diagonal/X)
+
+        Returns: measured bit (0 or 1)
+        """
+        # If bases match, measurement is deterministic
+        if send_basis == measure_basis:
+            return bit
+
+        # If bases don't match, measurement result is random (50/50)
+        # This simulates the quantum uncertainty when measuring in wrong basis
+        return np.random.randint(0, 2)
+
 class BB84Simulator:
     def __init__(self):
-        self.simulator = AerSimulator()
+        self.quantum_sim = PureQuantumSimulator()
 
     def simulate_transmission(self, alice_bits, alice_bases, bob_bases, eve_present=False, eve_intercept_prob=0.5):
+        """Simulate BB84 transmission with optional eavesdropper"""
         bob_results = []
         eve_results = []
 
         for a_bit, a_basis, b_basis in zip(alice_bits, alice_bases, bob_bases):
             if eve_present and np.random.rand() < eve_intercept_prob:
+                # Eve intercepts with random basis
                 eve_basis = np.random.randint(0, 2)
-                eve_bit = self._measure_qubit(a_bit, a_basis, eve_basis)
+                eve_bit = self.quantum_sim.measure_qubit(a_bit, a_basis, eve_basis)
                 eve_results.append(eve_bit)
-                bob_result = self._measure_qubit(eve_bit, eve_basis, b_basis)
+                # Bob measures Eve's state (not Alice's original)
+                bob_result = self.quantum_sim.measure_qubit(eve_bit, eve_basis, b_basis)
             else:
-                bob_result = self._measure_qubit(a_bit, a_basis, b_basis)
+                # Direct transmission from Alice to Bob
+                bob_result = self.quantum_sim.measure_qubit(a_bit, a_basis, b_basis)
                 eve_results.append(None)
 
             bob_results.append(bob_result)
 
         return bob_results, eve_results
 
-    def _measure_qubit(self, bit, send_basis, measure_basis):
-        qc = QuantumCircuit(1, 1)
-
-        if bit == 1:
-            qc.x(0)
-        if send_basis == 1:
-            qc.h(0)
-        if measure_basis == 1:
-            qc.h(0)
-
-        qc.measure(0, 0)
-        job = self.simulator.run(transpile(qc, self.simulator), shots=1)
-        counts = job.result().get_counts()
-        measured_bit = int(list(counts.keys())[0])
-        return measured_bit
-
     @staticmethod
     def privacy_amplification(sifted_key, error_rate, target_security_level=1e-6):
+        """Apply privacy amplification to generate final secure key"""
         sifted_key = [int(b) for b in list(sifted_key)]
         n = len(sifted_key)
         if n == 0:
@@ -58,14 +68,17 @@ class BB84Simulator:
         if e <= 0.0 or e >= 1.0:
             h_eve = 0.0
         else:
+            # Shannon entropy calculation
             h_eve = -e * np.log2(e) - (1 - e) * np.log2(1 - e)
 
+        # Calculate secure key length using privacy amplification formula
         secure_length = n * (1 - h_eve) - 2 * np.log2(1 / float(target_security_level))
         secure_length = max(0, int(secure_length))
 
         if secure_length == 0:
             return []
 
+        # Use cryptographic hash to compress key
         key_str = ''.join('1' if b == 1 else '0' for b in sifted_key)
         digest = hashlib.sha256(key_str.encode()).hexdigest()
         binary_hash = bin(int(digest, 16))[2:].zfill(256)
@@ -75,6 +88,7 @@ class BB84Simulator:
 
     @staticmethod
     def assess_security(qber, threshold=0.11):
+        """Assess security based on QBER"""
         if qber <= threshold:
             return {
                 'status': 'SECURE',
@@ -88,6 +102,7 @@ class BB84Simulator:
         }
 
 def create_transmission_timeline(alice_bits, alice_bases, bob_bases, bob_results):
+    """Create detailed timeline of transmission"""
     matches = (alice_bases == bob_bases)
     idx = np.where(matches)[0]
     sifted_alice = alice_bits[idx]
@@ -123,6 +138,7 @@ def create_transmission_timeline(alice_bits, alice_bases, bob_bases, bob_results
     return pd.DataFrame(timeline_data)
 
 def plot_transmission_timeline(timeline_df, title="BB84 Transmission Timeline", max_bits=50):
+    """Plot timeline showing transmitted bits and errors"""
     display_df = timeline_df.head(max_bits)
 
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(15, 10))
@@ -207,6 +223,8 @@ st.title("🔐 BB84 Quantum Key Distribution Simulator")
 st.markdown("""
 This interactive simulator demonstrates the BB84 quantum key distribution protocol, 
 which enables secure key exchange using quantum mechanics principles.
+
+**Note:** This version uses pure Python quantum simulation (no Qiskit required for web deployment).
 """)
 
 # Sidebar controls
@@ -393,8 +411,17 @@ else:
     - **QBER** (Quantum Bit Error Rate) indicates if eavesdropping occurred
     - Privacy amplification creates the final secure key
 
+    **Quantum Measurement:**
+    - When bases match: measurement is deterministic (bit value preserved)
+    - When bases don't match: measurement is random (50/50 outcome)
+    - Eve's measurement disturbs the quantum state, causing detectable errors
+
     **Security:**
     - Eavesdropping causes detectable errors due to quantum measurement collapse
     - QBER above threshold indicates potential security breach
     - The protocol detects but doesn't prevent eavesdropping
+
+    **Bases:**
+    - **Rectilinear (Z-basis)**: |0⟩ and |1⟩ states
+    - **Diagonal (X-basis)**: |+⟩ and |−⟩ states (superposition)
     """)
